@@ -2,11 +2,11 @@ FFmpeg Screen Recorder
 ====================
 
 This program a gadget which helps you use **FFmpeg** to record your screen on Linux. The video record can be saved as a
-file, or be streamed via RTMP protocol. Your **FFmpeg** needs to enable **libxcb**, **libfdk-aac** and **libx264** libraries.
+file, or be streamed via RTMP protocol.
 
 ## Seting Up
 
-All you need is **FFmpeg**. You can get one [here](https://github.com/magiclen/FFmpeg-For-MagicLen-Applications/releases). It has to be compiled with libfdk-aac and libx264 support.
+All you need is **FFmpeg**. You can get one [here](https://github.com/magiclen/FFmpeg-For-MagicLen-Applications/releases). It has to be compiled with **libxcb**, **libfdk-aac** and **libx264** libraries.
 
 ## Help
 
