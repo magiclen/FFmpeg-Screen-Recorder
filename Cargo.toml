@@ -1,0 +1,14 @@
+[package]
+name = "ffmpeg-screen-recorder"
+version = "1.0.0"
+authors = ["Magic Len <len@magiclen.org>"]
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+subprocess = "0.1.13"
+num_cpus = "1.8.0"
+chrono = "0.4.4"
+nix = "0.11.0"
+clap = "2.32.0"
