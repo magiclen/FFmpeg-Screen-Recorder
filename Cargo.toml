@@ -3,6 +3,7 @@ name = "ffmpeg-screen-recorder"
 license = "MIT"
 version = "1.0.0"
 authors = ["Magic Len <len@magiclen.org>"]
+description= "This program a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol."
 
 [profile.release]
 panic = "abort"
@@ -13,3 +14,4 @@ num_cpus = "1.8.0"
 chrono = "0.4.4"
 nix = "0.11.0"
 clap = "2.32.0"
+
