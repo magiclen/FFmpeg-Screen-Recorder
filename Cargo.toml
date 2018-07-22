@@ -1,5 +1,6 @@
 [package]
 name = "ffmpeg-screen-recorder"
+license = "MIT"
 version = "1.0.0"
 authors = ["Magic Len <len@magiclen.org>"]
 
