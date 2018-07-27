@@ -77,11 +77,14 @@ impl Config {
         let ffmpeg_path = if ffmpeg_path.ne(DEFAULT_FFMPEG_PATH) {
             let mut path = Path::new(ffmpeg_path);
 
-            if !path.exists() {
-                return Err(String::from("FFMPEG_PATH is incorrect."));
-            }
-
-            let path = path.canonicalize().unwrap();
+            let path = match path.canonicalize() {
+                Ok(path) => {
+                    path
+                }
+                Err(_) => {
+                    return Err(String::from("FFMPEG_PATH is incorrect."));
+                }
+            };
 
             let path = path.to_str().unwrap();
 
@@ -93,21 +96,27 @@ impl Config {
         let opt_window = matches.is_present("w");
         let opt_no_sound = !matches.is_present("a");
         let mut opt_rtmp = false;
+
         let opt_file_path = if let Some(t) = matches.value_of("o") {
             if t.starts_with("rtmp://") {
                 opt_rtmp = true;
             }
+
             let path = Path::new(t);
-            if let Err(x) = path.canonicalize() {
-                if x.kind() != ErrorKind::NotFound {
-                    return Err(format!("Unknown file path {:?}", x));
+
+            if let Err(err) = path.canonicalize() {
+                if err.kind() != ErrorKind::NotFound {
+                    return Err(format!("Unknown file path {:?}", err));
                 }
             }
+
             String::from(t)
         } else {
             let utc: DateTime<Utc> = Utc::now();
+
             utc.format("%Y-%m-%d-%H-%M-%S.mp4").to_string()
         };
+
         let opt_normalize = !matches.is_present("nn");
 
         Ok(Config {
@@ -183,12 +192,12 @@ impl Resolution {
             (640, 360),
             (426, 240),
         ].iter()
-        {
-            if self.width <= wh.0 && self.height <= wh.1 {
-                width = wh.0;
-                height = wh.1;
+            {
+                if self.width <= wh.0 && self.height <= wh.1 {
+                    width = wh.0;
+                    height = wh.1;
+                }
             }
-        }
 
         Resolution::new(width, height)
     }
