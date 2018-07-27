@@ -1,12 +1,12 @@
 [package]
 name = "ffmpeg-screen-recorder"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/FFmpeg-Screen-Recorder"
 homepage = "https://magiclen.org/ffmpeg-screen-recorder"
 keywords = ["ffmpeg", "cli", "screenrecord"]
 categories = ["command-line-utilities"]
-description= "This program a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol."
+description= "This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol."
 readme = "README.md"
 license = "MIT"
 
@@ -19,4 +19,3 @@ num_cpus = "1.8.0"
 chrono = "0.4.4"
 nix = "0.11.0"
 clap = "2.32.0"
-

@@ -1,6 +1,6 @@
 //! # FFmpeg Screen Recorder
 //!
-//! This program a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol.
+//! This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol.
 
 extern crate chrono;
 extern crate clap;
@@ -38,7 +38,7 @@ impl Config {
         let matches = App::new(APP_NAME)
             .version(CARGO_PKG_VERSION)
             .author(CARGO_PKG_AUTHORS)
-            .about("This program a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol. Your FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.")
+            .about("This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol. Your FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.")
             .arg(Arg::with_name("w")
                 .short("w")
                 .long("window")
