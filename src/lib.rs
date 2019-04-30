@@ -4,6 +4,7 @@
 
 extern crate chrono;
 extern crate clap;
+extern crate terminal_size;
 extern crate num_cpus;
 extern crate subprocess;
 
@@ -15,6 +16,7 @@ use subprocess::Exec;
 
 use chrono::prelude::*;
 
+use terminal_size::{Width, terminal_size};
 use clap::{App, Arg};
 
 // TODO -----Config START-----
@@ -35,7 +37,14 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Result<Config, String> {
+        let terminal_width = if let Some((Width(width), _)) = terminal_size() {
+            width as usize
+        } else {
+            0
+        };
+
         let matches = App::new(APP_NAME)
+            .set_term_width(terminal_width)
             .version(CARGO_PKG_VERSION)
             .author(CARGO_PKG_AUTHORS)
             .about("This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol. Your FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.")
