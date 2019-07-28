@@ -10,8 +10,9 @@ description= "This program is a gadget which helps you use FFmpeg to record your
 readme = "README.md"
 license = "MIT"
 
-[badges]
-travis-ci = { repository = "magiclen/FFmpeg-Screen-Recorder", branch = "master" }
+[badges.travis-ci]
+repository = "magiclen/FFmpeg-Screen-Recorder"
+branch = "master"
 
 [profile.release]
 panic = "abort"
