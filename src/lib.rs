@@ -4,9 +4,9 @@
 
 extern crate chrono;
 extern crate clap;
-extern crate terminal_size;
 extern crate num_cpus;
 extern crate subprocess;
+extern crate terminal_size;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -16,8 +16,8 @@ use subprocess::Exec;
 
 use chrono::prelude::*;
 
-use terminal_size::{Width, terminal_size};
 use clap::{App, Arg};
+use terminal_size::{terminal_size, Width};
 
 // TODO -----Config START-----
 
@@ -84,12 +84,10 @@ impl Config {
         let ffmpeg_path = matches.value_of("ffmpeg").unwrap();
 
         let ffmpeg_path = if ffmpeg_path.ne(DEFAULT_FFMPEG_PATH) {
-            let mut path = Path::new(ffmpeg_path);
+            let path = Path::new(ffmpeg_path);
 
             let path = match path.canonicalize() {
-                Ok(path) => {
-                    path
-                }
+                Ok(path) => path,
                 Err(_) => {
                     return Err(String::from("FFMPEG_PATH is incorrect."));
                 }
@@ -161,13 +159,19 @@ pub struct WindowInfo {
 
 impl Position {
     pub fn new(x: i32, y: i32) -> Position {
-        Position { x, y }
+        Position {
+            x,
+            y,
+        }
     }
 }
 
 impl Resolution {
     pub fn new(width: i32, height: i32) -> Resolution {
-        Resolution { width, height }
+        Resolution {
+            width,
+            height,
+        }
     }
 
     pub fn get_screen_resolution() -> Resolution {
@@ -177,11 +181,12 @@ impl Resolution {
                 | Exec::shell("cut -d ',' -f 2")
                 | Exec::shell("cut -d ' ' -f 3-5")
                 | Exec::shell("tr -d ' '")
-        }.capture()
-            .unwrap()
-            .stdout_str();
+        }
+        .capture()
+        .unwrap()
+        .stdout_str();
 
-        let res: Vec<&str> = res.trim().split("x").collect();
+        let res: Vec<&str> = res.trim().split('x').collect();
 
         let res: Vec<i32> = res.iter().map(|&x| x.trim().parse().unwrap()).collect();
 
@@ -200,13 +205,14 @@ impl Resolution {
             (854, 480),
             (640, 360),
             (426, 240),
-        ].iter()
-            {
-                if self.width <= wh.0 && self.height <= wh.1 {
-                    width = wh.0;
-                    height = wh.1;
-                }
+        ]
+        .iter()
+        {
+            if self.width <= wh.0 && self.height <= wh.1 {
+                width = wh.0;
+                height = wh.1;
             }
+        }
 
         Resolution::new(width, height)
     }
@@ -220,49 +226,53 @@ impl WindowInfo {
 
         let win_width: i32 = {
             Exec::shell("grep 'Width:'") | Exec::shell("cut -d ':' -f 2") | Exec::shell("tr -d ' '")
-        }.stdin(win_info.as_str())
-            .capture()
-            .unwrap()
-            .stdout_str()
-            .trim()
-            .parse()
-            .unwrap();
+        }
+        .stdin(win_info.as_str())
+        .capture()
+        .unwrap()
+        .stdout_str()
+        .trim()
+        .parse()
+        .unwrap();
 
         let win_height: i32 = {
             Exec::shell("grep 'Height:'")
                 | Exec::shell("cut -d ':' -f 2")
                 | Exec::shell("tr -d ' '")
-        }.stdin(win_info.as_str())
-            .capture()
-            .unwrap()
-            .stdout_str()
-            .trim()
-            .parse()
-            .unwrap();
+        }
+        .stdin(win_info.as_str())
+        .capture()
+        .unwrap()
+        .stdout_str()
+        .trim()
+        .parse()
+        .unwrap();
 
         let win_ux: i32 = {
             Exec::shell("grep 'Absolute upper-left X'")
                 | Exec::shell("cut -d ':' -f 2")
                 | Exec::shell("tr -d ' '")
-        }.stdin(win_info.as_str())
-            .capture()
-            .unwrap()
-            .stdout_str()
-            .trim()
-            .parse()
-            .unwrap();
+        }
+        .stdin(win_info.as_str())
+        .capture()
+        .unwrap()
+        .stdout_str()
+        .trim()
+        .parse()
+        .unwrap();
 
         let win_uy: i32 = {
             Exec::shell("grep 'Absolute upper-left Y'")
                 | Exec::shell("cut -d ':' -f 2")
                 | Exec::shell("tr -d ' '")
-        }.stdin(win_info.as_str())
-            .capture()
-            .unwrap()
-            .stdout_str()
-            .trim()
-            .parse()
-            .unwrap();
+        }
+        .stdin(win_info.as_str())
+        .capture()
+        .unwrap()
+        .stdout_str()
+        .trim()
+        .parse()
+        .unwrap();
 
         let width = if win_width + win_ux > screen_resolution.width {
             screen_resolution.width - win_ux
@@ -281,6 +291,13 @@ impl WindowInfo {
             resolution: Resolution::new(width, height),
             position: Position::new(win_ux, win_uy),
         }
+    }
+}
+
+impl Default for WindowInfo {
+    #[inline]
+    fn default() -> Self {
+        WindowInfo::new()
     }
 }
 

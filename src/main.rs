@@ -10,7 +10,7 @@ use subprocess::{Exec, ExitStatus};
 
 use nix::sys::signal;
 
-extern "C" fn handle_sigint(_: i32) {
+extern fn handle_sigint(_: i32) {
     eprintln!("Interrupted!");
 }
 
@@ -28,7 +28,7 @@ fn main() {
 
     match config {
         Ok(config) => {
-            if let Err(_) = Exec::cmd(&config.ffmpeg_path).capture() {
+            if Exec::cmd(&config.ffmpeg_path).capture().is_err() {
                 eprintln!("FFMPEG_PATH is incorrect or the file cannot be executed.");
                 process::exit(1);
             }
@@ -51,10 +51,8 @@ fn main() {
                 if config.opt_no_sound {
                     mute = vec!["-af", "volume=0"];
                 }
-            } else {
-                if config.opt_no_sound {
-                    audio = vec!["-an"];
-                }
+            } else if config.opt_no_sound {
+                audio = vec!["-an"];
             }
 
             let screen_resolution;
@@ -76,9 +74,14 @@ fn main() {
             } else {
                 let res = Resolution::get_screen_resolution();
 
-                screen_resolution = Resolution { ..res };
+                screen_resolution = Resolution {
+                    ..res
+                };
                 window_resolution = res;
-                position = Position { x: 0, y: 0 };
+                position = Position {
+                    x: 0,
+                    y: 0,
+                };
             }
 
             let adjust_resolution = if config.opt_normalize {
@@ -98,10 +101,7 @@ fn main() {
                 .arg("-r")
                 .arg(frame_rate.to_string())
                 .arg("-s")
-                .arg(format!(
-                    "{}x{}",
-                    screen_resolution.width, screen_resolution.height
-                ))
+                .arg(format!("{}x{}", screen_resolution.width, screen_resolution.height))
                 .arg("-i")
                 .arg(":0")
                 .arg("-f")
@@ -130,11 +130,7 @@ fn main() {
                 ));
             }
 
-            let process = process
-                .args(&audio)
-                .args(&mute)
-                .args(&format)
-                .arg(&config.opt_file_path);
+            let process = process.args(&audio).args(&mute).args(&format).arg(&config.opt_file_path);
 
             if let Ok(e) = process.join() {
                 if let ExitStatus::Exited(exit) = e {
