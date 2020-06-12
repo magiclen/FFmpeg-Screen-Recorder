@@ -22,7 +22,7 @@ panic = "abort"
 clap = "2.33.1"
 terminal_size = "0.1"
 
-execute = "0.2.3"
+execute = "0.2.4"
 num_cpus = "1.8.0"
 chrono = "0.4.4"
 nix = "0.17"

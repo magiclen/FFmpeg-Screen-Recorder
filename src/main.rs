@@ -4,12 +4,14 @@ extern crate clap;
 extern crate terminal_size;
 
 extern crate chrono;
+
+#[macro_use]
 extern crate execute;
 
 extern crate ffmpeg_screen_recorder;
 
 use std::borrow::Cow;
-use std::process::{self, Command};
+use std::process;
 
 use clap::{App, Arg};
 use terminal_size::terminal_size;
@@ -103,7 +105,7 @@ fn main() -> Result<(), String> {
 
     let opt_normalize = !matches.is_present("nn");
 
-    if Command::new(ffmpeg).args(&["-version"]).execute_check_exit_status_code(0).is_err() {
+    if command_args!(ffmpeg, "-version").execute_check_exit_status_code(0).is_err() {
         return Err(format!("Cannot execute `{}`.", ffmpeg));
     }
 
@@ -169,7 +171,7 @@ fn main() -> Result<(), String> {
     let frame_rate_string = frame_rate.to_string();
     let res_str = format!("{}x{}", screen_resolution.width, screen_resolution.height);
 
-    let mut command = Command::new(ffmpeg);
+    let mut command = command_args!(ffmpeg);
 
     command.args(&[
         "-threads",
