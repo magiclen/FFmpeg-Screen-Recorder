@@ -11,6 +11,7 @@ extern crate execute;
 extern crate ffmpeg_screen_recorder;
 
 use std::borrow::Cow;
+use std::error::Error;
 use std::process;
 
 use clap::{App, Arg};
@@ -46,7 +47,7 @@ fn handle_signals() {
     }
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn Error>> {
     handle_signals();
 
     let matches = App::new(APP_NAME)
@@ -106,7 +107,7 @@ fn main() -> Result<(), String> {
     let opt_normalize = !matches.is_present("nn");
 
     if command_args!(ffmpeg, "-version").execute_check_exit_status_code(0).is_err() {
-        return Err(format!("Cannot execute `{}`.", ffmpeg));
+        return Err(format!("Cannot execute `{}`.", ffmpeg).into());
     }
 
     let mut video =
@@ -137,7 +138,7 @@ fn main() -> Result<(), String> {
     if opt_window {
         eprintln!("Please select a window with your mouse.");
 
-        let window_info = WindowInfo::new().map_err(|err| err.to_string())?;
+        let window_info = WindowInfo::new()?;
         let res = window_info.resolution;
         let pos = window_info.position;
         let screen = window_info.screen;
@@ -146,7 +147,7 @@ fn main() -> Result<(), String> {
         window_resolution = res;
         position = pos;
     } else {
-        let res = Resolution::get_screen_resolution().map_err(|err| err.to_string())?;
+        let res = Resolution::get_screen_resolution()?;
 
         screen_resolution = Resolution {
             ..res
@@ -214,10 +215,7 @@ fn main() -> Result<(), String> {
     command.args(format);
     command.arg(opt_file_path.as_ref());
 
-    let rtn = command
-        .execute_output()
-        .map(|output| output.status.code())
-        .map_err(|err| err.to_string())?;
+    let rtn = command.execute_output().map(|output| output.status.code())?;
 
     match rtn {
         Some(code) => {
