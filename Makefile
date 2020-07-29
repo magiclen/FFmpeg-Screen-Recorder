@@ -7,7 +7,7 @@ all: ./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder
 install:
 	$(MAKE)
 	sudo cp ./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder /usr/local/bin/ffmpeg-screen-recorder
-	sudo chown root. /usr/local/bin/ffmpeg-screen-recorder
+	sudo chown root: /usr/local/bin/ffmpeg-screen-recorder
 	sudo chmod 0755 /usr/local/bin/ffmpeg-screen-recorder
 
 uninstall:
