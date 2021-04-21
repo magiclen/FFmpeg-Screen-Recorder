@@ -1,6 +1,6 @@
 [package]
 name = "ffmpeg-screen-recorder"
-version = "1.0.14"
+version = "1.0.15"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2018"
 repository = "https://github.com/magiclen/FFmpeg-Screen-Recorder"
@@ -11,10 +11,6 @@ description = "This program is a gadget which helps you use FFmpeg to record you
 readme = "README.md"
 license = "MIT"
 include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
-
-[badges.travis-ci]
-repository = "magiclen/FFmpeg-Screen-Recorder"
-branch = "master"
 
 [profile.release]
 lto = true

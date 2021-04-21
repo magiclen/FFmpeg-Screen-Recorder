@@ -1,7 +1,7 @@
 FFmpeg Screen Recorder
 ====================
 
-[![Build Status](https://travis-ci.org/magiclen/FFmpeg-Screen-Recorder.svg?branch=master)](https://travis-ci.org/magiclen/FFmpeg-Screen-Recorder)
+[![CI](https://github.com/magiclen/FFmpeg-Screen-Recorder/actions/workflows/ci.yml/badge.svg)](https://github.com/magiclen/FFmpeg-Screen-Recorder/actions/workflows/ci.yml)
 
 This program is a gadget which helps you use **FFmpeg** to record your screen on Linux. The video record can be saved as a
 file, or be streamed via RTMP protocol.
