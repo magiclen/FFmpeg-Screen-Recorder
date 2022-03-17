@@ -1,17 +1,19 @@
-all: ./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder
+EXECUTABLE_NAME := ffmpeg-screen-recorder
 
-./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder: $(shell find . -type f -iname '*.rs' -o -name 'Cargo.toml' | sed 's/ /\\ /g')
+all: ./target/x86_64-unknown-linux-musl/release/$(EXECUTABLE_NAME)
+
+./target/x86_64-unknown-linux-musl/release/$(EXECUTABLE_NAME): $(shell find . -type f -iname '*.rs' -o -name 'Cargo.toml' | sed 's/ /\\ /g')
 	cargo build --release --target x86_64-unknown-linux-musl
-	strip ./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder
+	strip ./target/x86_64-unknown-linux-musl/release/$(EXECUTABLE_NAME)
 	
 install:
 	$(MAKE)
-	sudo cp ./target/x86_64-unknown-linux-musl/release/ffmpeg-screen-recorder /usr/local/bin/ffmpeg-screen-recorder
-	sudo chown root: /usr/local/bin/ffmpeg-screen-recorder
-	sudo chmod 0755 /usr/local/bin/ffmpeg-screen-recorder
+	sudo cp ./target/x86_64-unknown-linux-musl/release/$(EXECUTABLE_NAME) /usr/local/bin/$(EXECUTABLE_NAME)
+	sudo chown root: /usr/local/bin/$(EXECUTABLE_NAME)
+	sudo chmod 0755 /usr/local/bin/$(EXECUTABLE_NAME)
 
 uninstall:
-	sudo rm /usr/local/bin/ffmpeg-screen-recorder
+	sudo rm /usr/local/bin/$(EXECUTABLE_NAME)
 
 test:
 	cargo test --verbose
