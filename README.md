@@ -14,19 +14,16 @@ All you need is **FFmpeg**. You can get one [here](https://github.com/magiclen/F
 
 ```
 USAGE:
-    ffmpeg-screen-recorder [FLAGS] [OPTIONS]
-
-FLAGS:
-    -a, --with-audio      Records your screen with audio which could be internal or external. It depends on your
-                          computer environment.
-    -h, --help            Prints help information
-    -n, --no-normalize    Does not pad the video size with black borders to the fixed ratio of 16:9.
-    -V, --version         Prints version information
-    -w, --window          Selects a window to record.
+    ffmpeg-screen-recorder [OPTIONS]
 
 OPTIONS:
-    -f, --ffmpeg-path <FFMPEG_PATH>    Specifies the path of your FFmpeg executable binary file. [default: ffmpeg]
-    -o, --output <FILE/RTMP_URL>       Assigns a destination of your video. It should be a file path or a RTMP url.
+    -a, --with-audio                   Record your screen with audio which could be internal or external. It depends on your computer environment.
+    -f, --ffmpeg-path <FFMPEG_PATH>    Specify the path of your FFmpeg executable binary file. [default: ffmpeg]
+    -h, --help                         Print help information
+    -n, --no-normalize                 Do not pad the video size with black borders to the fixed ratio of 16:9.
+    -o, --output <FILE/RTMP_URL>       Assign a destination of your video. It should be a file path or a RTMP url.
+    -V, --version                      Print version information
+    -w, --window                       Select a window to record.
 ```
 
 ## License

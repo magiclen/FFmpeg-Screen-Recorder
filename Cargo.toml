@@ -1,8 +1,8 @@
 [package]
 name = "ffmpeg-screen-recorder"
-version = "1.0.15"
+version = "1.0.16"
 authors = ["Magic Len <len@magiclen.org>"]
-edition = "2018"
+edition = "2021"
 repository = "https://github.com/magiclen/FFmpeg-Screen-Recorder"
 homepage = "https://magiclen.org/ffmpeg-screen-recorder"
 keywords = ["ffmpeg", "cli", "screenrecord"]
@@ -18,10 +18,10 @@ codegen-units = 1
 panic = "abort"
 
 [dependencies]
-clap = "2.33.1"
+clap = "3.1.6"
 terminal_size = "0.1"
 
 execute = "0.2.4"
 num_cpus = "1.8.0"
 chrono = "0.4.4"
-nix = "0.20"
+nix = "0.23"

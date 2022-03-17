@@ -1,27 +1,15 @@
-extern crate nix;
-
-extern crate clap;
-extern crate terminal_size;
-
-extern crate chrono;
-
-#[macro_use]
-extern crate execute;
-
-extern crate ffmpeg_screen_recorder;
-
 use std::borrow::Cow;
 use std::error::Error;
 use std::process;
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use terminal_size::terminal_size;
 
 use chrono::prelude::*;
 
 use nix::sys::signal;
 
-use execute::Execute;
+use execute::{command_args, Execute};
 
 use ffmpeg_screen_recorder::*;
 
@@ -50,37 +38,37 @@ fn handle_signals() {
 fn main() -> Result<(), Box<dyn Error>> {
     handle_signals();
 
-    let matches = App::new(APP_NAME)
-        .set_term_width(terminal_size().map(|(width, _)| width.0 as usize).unwrap_or(0))
+    let matches = Command::new(APP_NAME)
+        .term_width(terminal_size().map(|(width, _)| width.0 as usize).unwrap_or(0))
         .version(CARGO_PKG_VERSION)
         .author(CARGO_PKG_AUTHORS)
         .about("This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol. Your FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.")
-        .arg(Arg::with_name("w")
-            .short("w")
+        .arg(Arg::new("w")
+            .short('w')
             .long("window")
-            .help("Selects a window to record.")
+            .help("Select a window to record.")
         )
-        .arg(Arg::with_name("a")
-            .short("a")
+        .arg(Arg::new("a")
+            .short('a')
             .long("with-audio")
-            .help("Records your screen with audio which could be internal or external. It depends on your computer environment.")
+            .help("Record your screen with audio which could be internal or external. It depends on your computer environment.")
         )
-        .arg(Arg::with_name("nn")
-            .short("n")
+        .arg(Arg::new("nn")
+            .short('n')
             .long("no-normalize")
-            .help("Does not pad the video size with black borders to the fixed ratio of 16:9.")
+            .help("Do not pad the video size with black borders to the fixed ratio of 16:9.")
         )
-        .arg(Arg::with_name("o")
-            .short("o")
+        .arg(Arg::new("o")
+            .short('o')
             .long("output")
-            .help("Assigns a destination of your video. It should be a file path or a RTMP url.")
+            .help("Assign a destination of your video. It should be a file path or a RTMP url.")
             .takes_value(true)
             .value_name("FILE/RTMP_URL")
         )
-        .arg(Arg::with_name("ffmpeg")
-            .short("ffmpeg")
+        .arg(Arg::new("ffmpeg")
+            .short('f')
             .long("ffmpeg-path")
-            .help("Specifies the path of your FFmpeg executable binary file.")
+            .help("Specify the path of your FFmpeg executable binary file.")
             .takes_value(true)
             .value_name("FFMPEG_PATH")
             .default_value(DEFAULT_FFMPEG_PATH)
