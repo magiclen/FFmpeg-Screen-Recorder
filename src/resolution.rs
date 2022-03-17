@@ -1,7 +1,7 @@
 use std::io::{self, ErrorKind};
 use std::process::Stdio;
 
-use crate::execute::Execute;
+use execute::{command, Execute};
 
 #[derive(Debug)]
 pub struct Resolution {

@@ -2,11 +2,6 @@
 //!
 //! This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol.
 
-extern crate num_cpus;
-
-#[macro_use]
-extern crate execute;
-
 mod position;
 mod resolution;
 mod window_info;

@@ -2,7 +2,7 @@ use std::io::{self, ErrorKind};
 use std::process::{self, Stdio};
 use std::str::from_utf8_unchecked;
 
-use crate::execute::Execute;
+use execute::{command, Execute};
 
 use crate::{Position, Resolution};
 
