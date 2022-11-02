@@ -162,7 +162,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut command = command_args!(ffmpeg);
 
-    command.args(&[
+    command.args([
         "-threads",
         thread_string.as_str(),
         "-f",
@@ -197,7 +197,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         format!("pad={}:{}:(ow-iw)/2:(oh-ih)/2", adjust_resolution.width, adjust_resolution.height)
     };
 
-    command.args(&["-vf", pad_arg.as_str()]);
+    command.args(["-vf", pad_arg.as_str()]);
     command.args(audio);
     command.args(mute);
     command.args(format);
