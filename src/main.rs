@@ -1,24 +1,18 @@
-use std::borrow::Cow;
-use std::error::Error;
-use std::process;
-
-use clap::{Arg, Command};
-use terminal_size::terminal_size;
+use std::{borrow::Cow, error::Error, process};
 
 use chrono::prelude::*;
-
-use nix::sys::signal;
-
+use clap::{Arg, Command};
 use execute::{command_args, Execute};
-
 use ffmpeg_screen_recorder::*;
+use nix::sys::signal;
+use terminal_size::terminal_size;
 
 const APP_NAME: &str = "FFmpeg Screen Recorder";
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CARGO_PKG_AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const DEFAULT_FFMPEG_PATH: &str = "ffmpeg";
 
-extern fn handle_sigint(_: i32) {
+extern "C" fn handle_sigint(_: i32) {
     eprintln!("Interrupted!");
 }
 
@@ -42,36 +36,38 @@ fn main() -> Result<(), Box<dyn Error>> {
         .term_width(terminal_size().map(|(width, _)| width.0 as usize).unwrap_or(0))
         .version(CARGO_PKG_VERSION)
         .author(CARGO_PKG_AUTHORS)
-        .about("This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol. Your FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.")
-        .arg(Arg::new("w")
-            .short('w')
-            .long("window")
-            .help("Select a window to record.")
+        .about(
+            "This program is a gadget which helps you use FFmpeg to record your screen on Linux. \
+             The video record can be saved as a file, or be streamed via RTMP protocol. Your \
+             FFmpeg needs to enable libxcb, libfdk-aac and libx264 libraries.",
         )
-        .arg(Arg::new("a")
-            .short('a')
-            .long("with-audio")
-            .help("Record your screen with audio which could be internal or external. It depends on your computer environment.")
+        .arg(Arg::new("w").short('w').long("window").help("Select a window to record."))
+        .arg(Arg::new("a").short('a').long("with-audio").help(
+            "Record your screen with audio which could be internal or external. It depends on \
+             your computer environment.",
+        ))
+        .arg(
+            Arg::new("nn")
+                .short('n')
+                .long("no-normalize")
+                .help("Do not pad the video size with black borders to the fixed ratio of 16:9."),
         )
-        .arg(Arg::new("nn")
-            .short('n')
-            .long("no-normalize")
-            .help("Do not pad the video size with black borders to the fixed ratio of 16:9.")
+        .arg(
+            Arg::new("o")
+                .short('o')
+                .long("output")
+                .help("Assign a destination of your video. It should be a file path or a RTMP url.")
+                .takes_value(true)
+                .value_name("FILE/RTMP_URL"),
         )
-        .arg(Arg::new("o")
-            .short('o')
-            .long("output")
-            .help("Assign a destination of your video. It should be a file path or a RTMP url.")
-            .takes_value(true)
-            .value_name("FILE/RTMP_URL")
-        )
-        .arg(Arg::new("ffmpeg")
-            .short('f')
-            .long("ffmpeg-path")
-            .help("Specify the path of your FFmpeg executable binary file.")
-            .takes_value(true)
-            .value_name("FFMPEG_PATH")
-            .default_value(DEFAULT_FFMPEG_PATH)
+        .arg(
+            Arg::new("ffmpeg")
+                .short('f')
+                .long("ffmpeg-path")
+                .help("Specify the path of your FFmpeg executable binary file.")
+                .takes_value(true)
+                .value_name("FFMPEG_PATH")
+                .default_value(DEFAULT_FFMPEG_PATH),
         )
         .after_help("Enjoy it! https://magiclen.org")
         .get_matches();
@@ -88,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let utc: DateTime<Utc> = Utc::now();
 
                 (false, Cow::from(utc.format("%Y-%m-%d-%H-%M-%S.mp4").to_string()))
-            }
+            },
         }
     };
 
@@ -142,8 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         window_resolution = res;
         position = Position {
-            x: 0,
-            y: 0,
+            x: 0, y: 0
         };
     }
 
@@ -151,7 +146,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         window_resolution.get_normalized_resolution()
     } else {
         Resolution {
-            width: (window_resolution.width + 7) & !0b111,
+            width:  (window_resolution.width + 7) & !0b111,
             height: (window_resolution.height + 7) & !0b111,
         }
     };
@@ -210,7 +205,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             if code == 1 {
                 try_delete_file(&opt_file_path);
             }
-        }
+        },
         None => process::exit(1),
     }
 

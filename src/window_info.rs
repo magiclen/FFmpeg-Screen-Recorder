@@ -1,6 +1,8 @@
-use std::io::{self, ErrorKind};
-use std::process::{self, Stdio};
-use std::str::from_utf8_unchecked;
+use std::{
+    io::{self, ErrorKind},
+    process::{self, Stdio},
+    str::from_utf8_unchecked,
+};
 
 use execute::{command, Execute};
 
@@ -8,9 +10,9 @@ use crate::{Position, Resolution};
 
 #[derive(Debug)]
 pub struct WindowInfo {
-    pub screen: Resolution,
+    pub screen:     Resolution,
     pub resolution: Resolution,
-    pub position: Position,
+    pub position:   Position,
 }
 
 impl WindowInfo {
@@ -94,9 +96,9 @@ impl WindowInfo {
         };
 
         Ok(WindowInfo {
-            screen: screen_resolution,
+            screen:     screen_resolution,
             resolution: Resolution::new(width, height),
-            position: Position::new(win_ux, win_uy),
+            position:   Position::new(win_ux, win_uy),
         })
     }
 }

@@ -1,11 +1,13 @@
-use std::io::{self, ErrorKind};
-use std::process::Stdio;
+use std::{
+    io::{self, ErrorKind},
+    process::Stdio,
+};
 
 use execute::{command, Execute};
 
 #[derive(Debug)]
 pub struct Resolution {
-    pub width: i32,
+    pub width:  i32,
     pub height: i32,
 }
 
