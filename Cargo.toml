@@ -3,7 +3,7 @@ name = "ffmpeg-screen-recorder"
 version = "1.0.18"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
-rust-version = "1.57"
+rust-version = "1.59"
 repository = "https://github.com/magiclen/FFmpeg-Screen-Recorder"
 homepage = "https://magiclen.org/ffmpeg-screen-recorder"
 keywords = ["ffmpeg", "cli", "screenrecord"]
@@ -17,6 +17,7 @@ include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 lto = true
 codegen-units = 1
 panic = "abort"
+strip = true
 
 [dependencies]
 clap = "3.2.23"

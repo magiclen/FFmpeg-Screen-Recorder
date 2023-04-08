@@ -16,7 +16,7 @@ jobs:
         os:
           - ubuntu-latest
         toolchain:
-          - 1.57
+          - 1.59
           - stable
           - nightly
         target:
