@@ -4,6 +4,7 @@ use std::{
     str::from_utf8_unchecked,
 };
 
+use anyhow::{anyhow, Context};
 use execute::{command, Execute};
 
 use crate::{Position, Resolution};
@@ -16,14 +17,14 @@ pub struct WindowInfo {
 }
 
 impl WindowInfo {
-    pub fn new() -> Result<WindowInfo, io::Error> {
+    pub fn new() -> anyhow::Result<WindowInfo> {
         let screen_resolution = Resolution::get_screen_resolution()?;
 
         let mut command = command!("xwininfo");
 
         command.stdout(Stdio::piped());
 
-        let output = command.execute_output()?;
+        let output = command.execute_output().with_context(|| anyhow!("xwininfo"))?;
 
         if output.status.code().is_none() {
             process::exit(1);
@@ -37,10 +38,11 @@ impl WindowInfo {
 
         command3.stdout(Stdio::piped());
 
-        let output = command1.execute_multiple_input_output(win_info.as_slice(), &mut [
-            &mut command2,
-            &mut command3,
-        ])?;
+        let output = command1
+            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
+            .with_context(|| {
+                anyhow!("grep 'Width:' from {:?}", String::from_utf8_lossy(win_info.as_slice()))
+            })?;
 
         let win_width: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
             .trim_end()
@@ -49,22 +51,25 @@ impl WindowInfo {
 
         let mut command1 = command!("grep 'Height:'");
 
-        let output = command1.execute_multiple_input_output(win_info.as_slice(), &mut [
-            &mut command2,
-            &mut command3,
-        ])?;
+        let output = command1
+            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
+            .with_context(|| {
+                anyhow!("grep 'Height:' from {:?}", String::from_utf8_lossy(win_info.as_slice()))
+            })?;
 
-        let win_height: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
-            .trim_end()
-            .parse()
-            .map_err(|err| io::Error::new(ErrorKind::InvalidData, err))?;
+        let win_height: i32 =
+            unsafe { from_utf8_unchecked(output.stdout.as_slice()) }.trim_end().parse().unwrap();
 
         let mut command1 = command!("grep 'Absolute upper-left X'");
 
-        let output = command1.execute_multiple_input_output(win_info.as_slice(), &mut [
-            &mut command2,
-            &mut command3,
-        ])?;
+        let output = command1
+            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
+            .with_context(|| {
+                anyhow!(
+                    "grep 'Absolute upper-left X' from {:?}",
+                    String::from_utf8_lossy(win_info.as_slice())
+                )
+            })?;
 
         let win_ux: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
             .trim_end()
@@ -78,10 +83,8 @@ impl WindowInfo {
             &mut command3,
         ])?;
 
-        let win_uy: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
-            .trim_end()
-            .parse()
-            .map_err(|err| io::Error::new(ErrorKind::InvalidData, err))?;
+        let win_uy: i32 =
+            unsafe { from_utf8_unchecked(output.stdout.as_slice()) }.trim_end().parse().unwrap();
 
         let width = if win_width + win_ux > screen_resolution.width {
             screen_resolution.width - win_ux
