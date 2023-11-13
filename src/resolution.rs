@@ -35,7 +35,11 @@ impl Resolution {
                 &mut command4,
                 &mut command5,
             ])
-            .with_context(|| anyhow!("xrandr"))?;
+            .with_context(|| {
+                anyhow!(
+                    "{command1:?} | {command2:?} |  {command3:?} |  {command4:?} | {command5:?}"
+                )
+            })?;
 
         let res = unsafe { String::from_utf8_unchecked(res_output.stdout) };
 

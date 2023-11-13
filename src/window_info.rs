@@ -24,7 +24,7 @@ impl WindowInfo {
 
         command.stdout(Stdio::piped());
 
-        let output = command.execute_output().with_context(|| anyhow!("xwininfo"))?;
+        let output = command.execute_output().with_context(|| anyhow!("{command:?}"))?;
 
         if output.status.code().is_none() {
             process::exit(1);
@@ -41,7 +41,10 @@ impl WindowInfo {
         let output = command1
             .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
             .with_context(|| {
-                anyhow!("grep 'Width:' from {:?}", String::from_utf8_lossy(win_info.as_slice()))
+                anyhow!(
+                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
+                    String::from_utf8_lossy(win_info.as_slice())
+                )
             })?;
 
         let win_width: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
@@ -54,7 +57,10 @@ impl WindowInfo {
         let output = command1
             .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
             .with_context(|| {
-                anyhow!("grep 'Height:' from {:?}", String::from_utf8_lossy(win_info.as_slice()))
+                anyhow!(
+                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
+                    String::from_utf8_lossy(win_info.as_slice())
+                )
             })?;
 
         let win_height: i32 =
@@ -66,7 +72,7 @@ impl WindowInfo {
             .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
             .with_context(|| {
                 anyhow!(
-                    "grep 'Absolute upper-left X' from {:?}",
+                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
                     String::from_utf8_lossy(win_info.as_slice())
                 )
             })?;
