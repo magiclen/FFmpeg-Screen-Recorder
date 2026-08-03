@@ -1,5 +1,6 @@
 /// The 16:9 sizes that `--normalize` pads up to, ordered from the largest to the smallest.
-const NORMALIZED_RESOLUTIONS: [(i32, i32); 8] = [
+const NORMALIZED_RESOLUTIONS: [(i32, i32); 9] = [
+    (15360, 8640),
     (7680, 4320),
     (3840, 2160),
     (2560, 1440),
@@ -32,7 +33,7 @@ impl Resolution {
         Resolution::new(self.width & !1, self.height & !1)
     }
 
-    /// The smallest 16:9 size this resolution fits into, or `None` if it is larger than 8K.
+    /// The smallest common 16:9 size this resolution fits into, or `None` if it is larger than 16K.
     #[inline]
     pub fn get_normalized_resolution(&self) -> Option<Resolution> {
         NORMALIZED_RESOLUTIONS
@@ -68,8 +69,16 @@ mod tests {
     }
 
     #[test]
-    fn normalize_rejects_sizes_beyond_8k() {
-        assert_eq!(None, Resolution::new(8000, 5000).get_normalized_resolution());
+    fn normalize_supports_16k() {
+        assert_eq!(
+            Some(Resolution::new(15360, 8640)),
+            Resolution::new(8000, 5000).get_normalized_resolution()
+        );
+    }
+
+    #[test]
+    fn normalize_rejects_sizes_beyond_16k() {
+        assert_eq!(None, Resolution::new(16000, 9000).get_normalized_resolution());
     }
 
     #[test]

@@ -13,8 +13,9 @@ pub struct WindowInfo {
 
 impl WindowInfo {
     /// Let the user click a window and report its geometry.
-    pub fn select() -> anyhow::Result<WindowInfo> {
+    pub fn select(display: &str) -> anyhow::Result<WindowInfo> {
         let output = Command::new("xwininfo")
+            .args(["-display", display])
             .stdout(Stdio::piped())
             .output()
             .context("cannot execute `xwininfo`; it is needed by --window")?;

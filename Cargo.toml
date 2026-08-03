@@ -22,6 +22,7 @@ strip = true
 clap = { version = "4", features = ["derive"] }
 concat-with = "0.2"
 terminal_size = "0.4"
+tempfile = "3"
 
 anyhow = "1"
 

@@ -15,9 +15,9 @@ pub struct Monitor {
 
 impl Monitor {
     /// Ask xrandr for every active monitor of the current display.
-    pub fn list() -> anyhow::Result<Vec<Monitor>> {
+    pub fn list(display: &str) -> anyhow::Result<Vec<Monitor>> {
         let output = Command::new("xrandr")
-            .arg("--listmonitors")
+            .args(["-display", display, "--listmonitors"])
             .stdout(Stdio::piped())
             .output()
             .context("cannot execute `xrandr`; it is needed to detect the screen size")?;

@@ -30,7 +30,10 @@ pub fn list_devices() -> anyhow::Result<()> {
         }
     }
 
-    println!("\nThe default source is used when --audio-device is not given.");
+    println!(
+        "\nUse --with-audio for the default system audio, --microphone for the default input, or \
+         pass one of these names to --audio-device."
+    );
 
     Ok(())
 }
