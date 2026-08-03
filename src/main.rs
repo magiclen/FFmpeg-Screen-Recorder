@@ -8,7 +8,7 @@ use std::{borrow::Cow, fs, process};
 use anyhow::anyhow;
 use chrono::prelude::*;
 use cli::*;
-use execute::{command_args, Execute};
+use execute::{Execute, command_args};
 use position::Position;
 use resolution::Resolution;
 use window_info::WindowInfo;

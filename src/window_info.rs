@@ -4,8 +4,8 @@ use std::{
     str::from_utf8_unchecked,
 };
 
-use anyhow::{anyhow, Context};
-use execute::{command, Execute};
+use anyhow::{Context, anyhow};
+use execute::{Execute, command};
 
 use crate::{Position, Resolution};
 

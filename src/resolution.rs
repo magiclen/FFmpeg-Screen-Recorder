@@ -1,7 +1,7 @@
 use std::process::Stdio;
 
-use anyhow::{anyhow, Context};
-use execute::{command, Execute};
+use anyhow::{Context, anyhow};
+use execute::{Execute, command};
 
 #[derive(Debug)]
 pub struct Resolution {
