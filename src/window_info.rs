@@ -1,113 +1,128 @@
-use std::{
-    io::{self, ErrorKind},
-    process::{self, Stdio},
-    str::from_utf8_unchecked,
-};
+use std::process::{Command, Stdio};
 
 use anyhow::{Context, anyhow};
-use execute::{Execute, command};
 
-use crate::{Position, Resolution};
+use crate::{position::Position, resolution::Resolution};
 
-#[derive(Debug)]
+/// The geometry of a window the user picked with the mouse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowInfo {
-    pub screen:     Resolution,
     pub resolution: Resolution,
     pub position:   Position,
 }
 
 impl WindowInfo {
-    pub fn new() -> anyhow::Result<WindowInfo> {
-        let screen_resolution = Resolution::get_screen_resolution()?;
+    /// Let the user click a window and report its geometry.
+    pub fn select() -> anyhow::Result<WindowInfo> {
+        let output = Command::new("xwininfo")
+            .stdout(Stdio::piped())
+            .output()
+            .context("cannot execute `xwininfo`; it is needed by --window")?;
 
-        let mut command = command!("xwininfo");
-
-        command.stdout(Stdio::piped());
-
-        let output = command.execute_output().with_context(|| anyhow!("{command:?}"))?;
-
-        if output.status.code().is_none() {
-            process::exit(1);
+        if !output.status.success() {
+            return Err(anyhow!("`xwininfo` failed; no window was selected"));
         }
 
-        let win_info = output.stdout;
+        let text =
+            String::from_utf8(output.stdout).context("`xwininfo` did not output UTF-8 text")?;
 
-        let mut command1 = command!("grep 'Width:'");
-        let mut command2 = command!("cut -d ':' -f 2");
-        let mut command3 = command!("tr -d ' '");
+        parse_window_info(&text)
+    }
 
-        command3.stdout(Stdio::piped());
+    /// Clip the window to the screen, because x11grab rejects negative or out-of-screen regions.
+    pub fn clip_to(self, screen: Resolution) -> anyhow::Result<WindowInfo> {
+        let x = self.position.x.max(0);
+        let y = self.position.y.max(0);
 
-        let output = command1
-            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
-            .with_context(|| {
-                anyhow!(
-                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
-                    String::from_utf8_lossy(win_info.as_slice())
-                )
-            })?;
+        let width = (self.position.x + self.resolution.width).min(screen.width) - x;
+        let height = (self.position.y + self.resolution.height).min(screen.height) - y;
 
-        let win_width: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
-            .trim_end()
-            .parse()
-            .map_err(|err| io::Error::new(ErrorKind::InvalidData, err))?;
-
-        let mut command1 = command!("grep 'Height:'");
-
-        let output = command1
-            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
-            .with_context(|| {
-                anyhow!(
-                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
-                    String::from_utf8_lossy(win_info.as_slice())
-                )
-            })?;
-
-        let win_height: i32 =
-            unsafe { from_utf8_unchecked(output.stdout.as_slice()) }.trim_end().parse().unwrap();
-
-        let mut command1 = command!("grep 'Absolute upper-left X'");
-
-        let output = command1
-            .execute_multiple_input_output(win_info.as_slice(), &mut [&mut command2, &mut command3])
-            .with_context(|| {
-                anyhow!(
-                    "{command1:?} | {command2:?} | {command3:?} | from {:?}",
-                    String::from_utf8_lossy(win_info.as_slice())
-                )
-            })?;
-
-        let win_ux: i32 = unsafe { from_utf8_unchecked(output.stdout.as_slice()) }
-            .trim_end()
-            .parse()
-            .map_err(|err| io::Error::new(ErrorKind::InvalidData, err))?;
-
-        let mut command1 = command!("grep 'Absolute upper-left Y'");
-
-        let output = command1.execute_multiple_input_output(win_info.as_slice(), &mut [
-            &mut command2,
-            &mut command3,
-        ])?;
-
-        let win_uy: i32 =
-            unsafe { from_utf8_unchecked(output.stdout.as_slice()) }.trim_end().parse().unwrap();
-
-        let width = if win_width + win_ux > screen_resolution.width {
-            screen_resolution.width - win_ux
-        } else {
-            win_width
-        };
-
-        let height = if win_height + win_uy > screen_resolution.height {
-            screen_resolution.height - win_uy
-        } else {
-            win_height
-        };
+        if width <= 0 || height <= 0 {
+            return Err(anyhow!(
+                "the selected window lies outside of the {}x{} screen",
+                screen.width,
+                screen.height
+            ));
+        }
 
         Ok(WindowInfo {
-            screen:     screen_resolution,
             resolution: Resolution::new(width, height),
-            position:   Position::new(win_ux, win_uy),
+            position:   Position::new(x, y),
         })
+    }
+}
+
+/// Read the geometry out of an `xwininfo` report.
+fn parse_window_info(text: &str) -> anyhow::Result<WindowInfo> {
+    let width = field(text, "Width")?;
+    let height = field(text, "Height")?;
+    let x = field(text, "Absolute upper-left X")?;
+    let y = field(text, "Absolute upper-left Y")?;
+
+    Ok(WindowInfo {
+        resolution: Resolution::new(width, height), position: Position::new(x, y)
+    })
+}
+
+/// Read one `Name: value` line out of an `xwininfo` report.
+fn field(text: &str, name: &str) -> anyhow::Result<i32> {
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix(name)?.strip_prefix(':')?.trim().parse().ok())
+        .ok_or_else(|| anyhow!("cannot read {name:?} from the output of `xwininfo`"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+xwininfo: Window id: 0x4400007 "Terminal"
+
+  Absolute upper-left X:  1280
+  Absolute upper-left Y:  74
+  Relative upper-left X:  0
+  Relative upper-left Y:  0
+  Width: 1265
+  Height: 703
+  Depth: 24
+  Border width: 0
+  Corners:  +1280+74  -1295+74  -1295-1383  +1280-1383
+  -geometry 1265x703+1280+74
+"#;
+
+    #[test]
+    fn parse_xwininfo_output() {
+        assert_eq!(
+            WindowInfo {
+                resolution: Resolution::new(1265, 703),
+                position:   Position::new(1280, 74),
+            },
+            parse_window_info(SAMPLE).unwrap()
+        );
+    }
+
+    #[test]
+    fn clip_keeps_a_fully_visible_window() {
+        let window = WindowInfo {
+            resolution: Resolution::new(800, 600),
+            position:   Position::new(100, 50),
+        };
+
+        assert_eq!(window, window.clip_to(Resolution::new(1920, 1080)).unwrap());
+    }
+
+    #[test]
+    fn clip_trims_a_window_hanging_off_the_edges() {
+        let window = WindowInfo {
+            resolution: Resolution::new(800, 600),
+            position:   Position::new(-100, 900),
+        };
+
+        assert_eq!(
+            WindowInfo {
+                resolution: Resolution::new(700, 180), position: Position::new(0, 900)
+            },
+            window.clip_to(Resolution::new(1920, 1080)).unwrap()
+        );
     }
 }

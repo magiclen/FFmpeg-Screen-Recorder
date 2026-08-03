@@ -1,9 +1,17 @@
-use std::process::Stdio;
+/// The 16:9 sizes that `--normalize` pads up to, ordered from the largest to the smallest.
+const NORMALIZED_RESOLUTIONS: [(i32, i32); 8] = [
+    (7680, 4320),
+    (3840, 2160),
+    (2560, 1440),
+    (1920, 1080),
+    (1280, 720),
+    (854, 480),
+    (640, 360),
+    (426, 240),
+];
 
-use anyhow::{Context, anyhow};
-use execute::{Execute, command};
-
-#[derive(Debug)]
+/// A width and a height, in pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resolution {
     pub width:  i32,
     pub height: i32,
@@ -11,71 +19,62 @@ pub struct Resolution {
 
 impl Resolution {
     #[inline]
-    pub fn new(width: i32, height: i32) -> Resolution {
+    pub const fn new(width: i32, height: i32) -> Resolution {
         Resolution {
             width,
             height,
         }
     }
 
+    /// Round the size down to even numbers, which the `yuv420p` pixel format requires.
     #[inline]
-    pub fn get_screen_resolution() -> anyhow::Result<Resolution> {
-        let mut command1 = command!("xrandr");
-        let mut command2 = command!("head -n 1");
-        let mut command3 = command!("cut -d ',' -f 2");
-        let mut command4 = command!("cut -d ' ' -f 3-5");
-        let mut command5 = command!("tr -d ' '");
-
-        command5.stdout(Stdio::piped());
-
-        let res_output = command1
-            .execute_multiple_output(&mut [
-                &mut command2,
-                &mut command3,
-                &mut command4,
-                &mut command5,
-            ])
-            .with_context(|| {
-                anyhow!(
-                    "{command1:?} | {command2:?} |  {command3:?} |  {command4:?} | {command5:?}"
-                )
-            })?;
-
-        let res = unsafe { String::from_utf8_unchecked(res_output.stdout) };
-
-        let res_tokens: Vec<&str> = res.trim_end().split('x').collect();
-
-        let mut res: Vec<i32> = Vec::with_capacity(2);
-
-        for res_token in res_tokens {
-            res.push(res_token.trim().parse().unwrap());
-        }
-
-        Ok(Resolution::new(res[0], res[1]))
+    pub const fn to_even(self) -> Resolution {
+        Resolution::new(self.width & !1, self.height & !1)
     }
 
+    /// The smallest 16:9 size this resolution fits into, or `None` if it is larger than 8K.
     #[inline]
-    pub fn get_normalized_resolution(&self) -> Resolution {
-        let mut width = 7680;
-        let mut height = 4320;
+    pub fn get_normalized_resolution(&self) -> Option<Resolution> {
+        NORMALIZED_RESOLUTIONS
+            .iter()
+            .rev()
+            .find(|(width, height)| self.width <= *width && self.height <= *height)
+            .map(|&(width, height)| Resolution::new(width, height))
+    }
+}
 
-        for wh in [
-            (3840, 2160),
-            (2560, 1440),
-            (1920, 1080),
-            (1280, 720),
-            (854, 480),
-            (640, 360),
-            (426, 240),
-        ]
-        .iter()
-        {
-            if self.width <= wh.0 && self.height <= wh.1 {
-                width = wh.0;
-                height = wh.1;
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        Resolution::new(width, height)
+    #[test]
+    fn normalize_picks_the_smallest_fitting_size() {
+        assert_eq!(
+            Some(Resolution::new(1920, 1080)),
+            Resolution::new(1920, 1080).get_normalized_resolution()
+        );
+        assert_eq!(
+            Some(Resolution::new(1280, 720)),
+            Resolution::new(1000, 700).get_normalized_resolution()
+        );
+        assert_eq!(
+            Some(Resolution::new(854, 480)),
+            Resolution::new(500, 400).get_normalized_resolution()
+        );
+        assert_eq!(
+            Some(Resolution::new(3840, 2160)),
+            Resolution::new(3440, 1440).get_normalized_resolution()
+        );
+    }
+
+    #[test]
+    fn normalize_rejects_sizes_beyond_8k() {
+        assert_eq!(None, Resolution::new(8000, 5000).get_normalized_resolution());
+    }
+
+    #[test]
+    fn to_even_rounds_down() {
+        assert_eq!(Resolution::new(1918, 1080), Resolution::new(1919, 1081).to_even());
+        assert_eq!(Resolution::new(1920, 1080), Resolution::new(1920, 1080).to_even());
     }
 }

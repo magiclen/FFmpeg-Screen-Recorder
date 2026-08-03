@@ -1,150 +1,183 @@
-mod cli;
-mod position;
-mod resolution;
-mod window_info;
+use std::{
+    borrow::Cow,
+    fs,
+    path::Path,
+    process::{self, Command},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-use std::{borrow::Cow, fs, process};
-
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use chrono::prelude::*;
-use cli::*;
-use execute::{Execute, command_args};
-use position::Position;
-use resolution::Resolution;
-use window_info::WindowInfo;
+use ffmpeg_screen_recorder::{
+    Position, Resolution, audio,
+    cli::{CLIArgs, get_args},
+    ffmpeg::{self, Capabilities, Capture, RecordOptions},
+    monitor::{self, Monitor},
+    session,
+    window_info::WindowInfo,
+};
+use nix::{
+    libc,
+    sys::signal::{SigHandler, Signal, signal},
+};
+
+/// FFmpeg exits with this code once it has finished writing the file after a signal.
+const FFMPEG_INTERRUPTED_EXIT_CODE: i32 = 255;
+
+/// Set when the user presses Ctrl-C, so that a deliberately stopped recording is not treated as a failure.
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn handle_sigint(_: libc::c_int) {
+    INTERRUPTED.store(true, Ordering::SeqCst);
+}
 
 fn main() -> anyhow::Result<()> {
-    let args = get_args();
+    let mut args = get_args();
 
-    let (opt_rtmp, opt_file_path) = {
-        match args.output {
-            Some(t) => (t.starts_with("rtmp://"), Cow::from(t)),
-            None => {
-                let utc: DateTime<Utc> = Utc::now();
+    if args.list_audio_devices {
+        return audio::list_devices();
+    }
 
-                (false, Cow::from(utc.format("%Y-%m-%d-%H-%M-%S.mp4").to_string()))
-            },
-        }
+    session::check_x11_session(args.display.is_some())?;
+
+    let display = session::resolve_display(args.display.as_deref());
+
+    let (rtmp, output) = match args.output.take() {
+        Some(output) => {
+            (output.starts_with("rtmp://") || output.starts_with("rtmps://"), Cow::from(output))
+        },
+        None => {
+            let now: DateTime<Utc> = Utc::now();
+
+            (false, Cow::from(now.format("%Y-%m-%d-%H-%M-%S.mp4").to_string()))
+        },
     };
 
-    if command_args!(&args.ffmpeg_path, "-version").execute_check_exit_status_code(0).is_err() {
-        return Err(anyhow!("Cannot execute {:?}.", args.ffmpeg_path));
-    }
+    let capabilities = Capabilities::probe(&args.ffmpeg_path)?;
 
-    let mut video =
-        ["-vcodec", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "18"].as_ref();
-    let mut audio = ["-acodec", "libfdk_aac", "-vbr", "5", "-ar", "44100"].as_ref();
-    let mut mute = [].as_ref();
-    let mut frame_rate = 60;
-    let mut format = [].as_ref();
-
-    if opt_rtmp {
-        frame_rate = 30;
-        format = ["-f", "flv"].as_ref();
-        video = ["-vcodec", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "25"]
-            .as_ref();
-
-        if !args.with_audio {
-            mute = ["-af", "volume=0"].as_ref();
+    if let Some(hwaccel) = args.hwaccel {
+        if !capabilities.has(hwaccel) {
+            return Err(anyhow!(
+                "{:?} was not built with the {} encoder",
+                args.ffmpeg_path,
+                hwaccel.encoder()
+            ));
         }
-    } else if !args.with_audio {
-        audio = ["-an"].as_ref();
     }
 
-    let screen_resolution;
-    let window_resolution;
-    let position;
-    let thread = (num_cpus::get() / 2).max(1);
+    // The GPU is looked up before anything is asked of the user, so that a missing one fails right away.
+    let vaapi_device = match args.hwaccel {
+        Some(ffmpeg::HwAccel::Vaapi) => Some(ffmpeg::find_vaapi_device()?),
+        _ => None,
+    };
 
-    if args.window {
+    let (capture, pad_to) = select_capture(&args)?;
+
+    let audio_device = if args.with_audio || args.audio_device.is_some() {
+        Some(args.audio_device.as_deref().unwrap_or("default"))
+    } else {
+        None
+    };
+
+    let options = RecordOptions {
+        display: display.as_str(),
+        capture,
+        draw_mouse: !args.no_mouse,
+        frame_rate: args.fps.unwrap_or(if rtmp { 30 } else { 60 }),
+        audio_device,
+        audio_encoder: capabilities.audio_encoder(),
+        duration: args.duration.as_deref(),
+        pad_to,
+        crf: args.crf.unwrap_or(if rtmp { 25 } else { 18 }),
+        preset: args.preset.as_deref(),
+        hwaccel: args.hwaccel,
+        vaapi_device: vaapi_device.as_deref(),
+        overwrite: args.overwrite,
+        rtmp,
+        output: output.as_ref(),
+    };
+
+    let ffmpeg_args = ffmpeg::build_args(&options);
+
+    // Only a file that this run creates may be removed when FFmpeg fails.
+    let created_by_this_run = !rtmp && !Path::new(output.as_ref()).exists();
+
+    unsafe {
+        // FFmpeg resets handled signals to their default on exec, so it still stops gracefully on Ctrl-C while this process stays alive to wait for it.
+        signal(Signal::SIGINT, SigHandler::Handler(handle_sigint))
+            .context("cannot install the SIGINT handler")?;
+    }
+
+    let status = Command::new(&args.ffmpeg_path)
+        .args(&ffmpeg_args)
+        .status()
+        .with_context(|| anyhow!("cannot execute {:?}", args.ffmpeg_path))?;
+
+    let code = status.code().unwrap_or(1);
+
+    if code == 0 || INTERRUPTED.load(Ordering::SeqCst) || code == FFMPEG_INTERRUPTED_EXIT_CODE {
+        return Ok(());
+    }
+
+    if created_by_this_run {
+        let _ = fs::remove_file(output.as_ref());
+    }
+
+    process::exit(code);
+}
+
+/// Work out which rectangle to capture, and how big the padded output has to be.
+fn select_capture(args: &CLIArgs) -> anyhow::Result<(Capture, Option<Resolution>)> {
+    if args.select_region {
+        return Ok((Capture::SelectRegion, None));
+    }
+
+    let monitors = Monitor::list()?;
+    let screen = monitor::bounding_box(&monitors);
+
+    let (position, resolution) = if args.window {
         eprintln!("Please select a window with your mouse.");
 
-        let window_info = WindowInfo::new()?;
-        let res = window_info.resolution;
-        let pos = window_info.position;
-        let screen = window_info.screen;
+        let window = WindowInfo::select()?.clip_to(screen)?;
 
-        screen_resolution = screen;
-        window_resolution = res;
-        position = pos;
+        (window.position, window.resolution)
+    } else if let Some(name) = args.monitor.as_deref() {
+        let monitor = monitors.iter().find(|monitor| monitor.name == name).ok_or_else(|| {
+            anyhow!(
+                "there is no monitor named {name:?}; the available ones are {}",
+                monitors.iter().map(|monitor| monitor.name.as_str()).collect::<Vec<_>>().join(", ")
+            )
+        })?;
+
+        (monitor.position, monitor.resolution)
     } else {
-        let res = Resolution::get_screen_resolution()?;
+        (Position::new(0, 0), screen)
+    };
 
-        screen_resolution = Resolution {
-            ..res
-        };
-        window_resolution = res;
-        position = Position {
-            x: 0, y: 0
-        };
+    if args.normalize {
+        let pad_to = resolution.get_normalized_resolution().ok_or_else(|| {
+            anyhow!(
+                "{}x{} is larger than 8K, so it cannot be padded to a 16:9 size",
+                resolution.width,
+                resolution.height
+            )
+        })?;
+
+        return Ok((
+            Capture::Region {
+                position,
+                resolution,
+            },
+            Some(pad_to),
+        ));
     }
 
-    let adjust_resolution = if args.no_normalize {
-        Resolution {
-            width:  (window_resolution.width + 7) & !0b111,
-            height: (window_resolution.height + 7) & !0b111,
-        }
-    } else {
-        window_resolution.get_normalized_resolution()
-    };
-
-    let thread_string = thread.to_string();
-    let frame_rate_string = frame_rate.to_string();
-    let res_str = format!("{}x{}", screen_resolution.width, screen_resolution.height);
-
-    let mut command = command_args!(args.ffmpeg_path);
-
-    command.args([
-        "-threads",
-        thread_string.as_str(),
-        "-f",
-        "x11grab",
-        "-r",
-        frame_rate_string.as_str(),
-        "-s",
-        res_str.as_str(),
-        "-i",
-        ":0",
-        "-f",
-        "pulse",
-        "-ac",
-        "2",
-        "-i",
-        "default",
-    ]);
-
-    command.args(video);
-
-    let pad_arg = if args.window {
-        format!(
-            "crop={}:{}:{}:{},pad={}:{}:(ow-iw)/2:(oh-ih)/2",
-            window_resolution.width,
-            window_resolution.height,
-            position.x,
-            position.y,
-            adjust_resolution.width,
-            adjust_resolution.height
-        )
-    } else {
-        format!("pad={}:{}:(ow-iw)/2:(oh-ih)/2", adjust_resolution.width, adjust_resolution.height)
-    };
-
-    command.args(["-vf", pad_arg.as_str()]);
-    command.args(audio);
-    command.args(mute);
-    command.args(format);
-    command.arg(opt_file_path.as_ref());
-
-    let rtn = command.execute_output().map(|output| output.status.code())?;
-
-    match rtn {
-        Some(code) => {
-            if code == 1 {
-                let _ = fs::remove_file(opt_file_path.as_ref());
-            }
+    // yuv420p needs even dimensions, and dropping at most one pixel beats adding a black line.
+    Ok((
+        Capture::Region {
+            position,
+            resolution: resolution.to_even(),
         },
-        None => process::exit(1),
-    }
-
-    Ok(())
+        None,
+    ))
 }

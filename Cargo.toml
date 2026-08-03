@@ -1,6 +1,6 @@
 [package]
 name = "ffmpeg-screen-recorder"
-version = "1.0.21"
+version = "2.0.0"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -25,7 +25,5 @@ terminal_size = "0.4"
 
 anyhow = "1"
 
-execute = "0.3"
-num_cpus = "1"
 chrono = "0.4"
 nix = { version = "0.31", features = ["signal"] }
