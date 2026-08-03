@@ -1,6 +1,6 @@
 use std::{
-    fs,
-    os::unix::process::CommandExt,
+    fs::{self, Permissions},
+    os::unix::{fs::PermissionsExt, process::CommandExt},
     path::Path,
     process::{self, Command, ExitStatus, Stdio},
     sync::atomic::{AtomicI32, Ordering},
@@ -24,10 +24,13 @@ use ffmpeg_screen_recorder::{
 use nix::{
     errno::Errno,
     libc,
-    sys::signal::{SigHandler, Signal, kill, signal},
+    sys::{
+        signal::{SigHandler, Signal, kill, signal},
+        stat::{Mode, umask},
+    },
     unistd::Pid,
 };
-use tempfile::{Builder as TempFileBuilder, NamedTempFile};
+use tempfile::{Builder as TempFileBuilder, NamedTempFile, PersistError};
 
 /// FFmpeg exits with this code once it has finished writing the file after a signal.
 const FFMPEG_INTERRUPTED_EXIT_CODE: i32 = 255;
@@ -88,68 +91,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let quality = args.quality.unwrap_or(if rtmp { 25 } else { 18 });
-    let video_encoder = match args.hwaccel {
-        Some(ffmpeg::HwAccel::Vaapi) => {
-            if args.nvenc_gpu.is_some() {
-                return Err(anyhow!("--nvenc-gpu requires --hwaccel nvenc"));
-            }
-            if let Some(preset) = args.preset.as_deref() {
-                return Err(anyhow!(
-                    "--preset {preset:?} cannot be used with VAAPI; the driver controls its speed \
-                     and quality tradeoff"
-                ));
-            }
-
-            let device = args
-                .vaapi_device
-                .as_deref()
-                .or(automatic_vaapi_device.as_deref())
-                .expect("a VAAPI device was provided or found");
-
-            VideoEncoder::Vaapi {
-                device,
-                qp: quality,
-            }
-        },
-        Some(ffmpeg::HwAccel::Nvenc) => {
-            if args.vaapi_device.is_some() {
-                return Err(anyhow!("--vaapi-device requires --hwaccel vaapi"));
-            }
-
-            let preset = args
-                .preset
-                .as_deref()
-                .unwrap_or("p4")
-                .parse::<NvencPreset>()
-                .map_err(anyhow::Error::msg)?;
-
-            VideoEncoder::Nvenc {
-                gpu: args.nvenc_gpu,
-                qp: quality,
-                preset,
-            }
-        },
-        None => {
-            if args.vaapi_device.is_some() {
-                return Err(anyhow!("--vaapi-device requires --hwaccel vaapi"));
-            }
-            if args.nvenc_gpu.is_some() {
-                return Err(anyhow!("--nvenc-gpu requires --hwaccel nvenc"));
-            }
-
-            let preset = args
-                .preset
-                .as_deref()
-                .unwrap_or("veryfast")
-                .parse::<SoftwarePreset>()
-                .map_err(anyhow::Error::msg)?;
-
-            VideoEncoder::Libx264 {
-                crf: quality,
-                preset,
-            }
-        },
-    };
+    let video_encoder = select_video_encoder(&args, quality, automatic_vaapi_device.as_deref())?;
 
     let (capture, pad_to) = select_capture(&args, &display)?;
 
@@ -243,17 +185,30 @@ fn create_temporary_output(output: &str, overwrite: bool) -> anyhow::Result<Name
 
     let parent =
         output.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    // The temporary path is reported when a recording cannot be moved, so it is resolved rather than left with `.` or `..` in it.
+    let parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
     let suffix = output.extension().map(|extension| format!(".{}", extension.to_string_lossy()));
     let mut builder = TempFileBuilder::new();
 
     builder.prefix(".ffmpeg-screen-recorder-");
+    // A temporary file would be created as 0600, but FFmpeg creates its output as 0666 before the umask is applied.
+    builder.permissions(Permissions::from_mode(0o666 & !current_umask()));
     if let Some(suffix) = suffix.as_deref() {
         builder.suffix(suffix);
     }
 
     builder
-        .tempfile_in(parent)
+        .tempfile_in(&parent)
         .with_context(|| anyhow!("cannot create a temporary output file in {parent:?}"))
+}
+
+/// Read the umask, which can only be done by replacing it and then putting it back.
+fn current_umask() -> u32 {
+    let mask = umask(Mode::empty());
+
+    umask(mask);
+
+    mask.bits()
 }
 
 fn publish_output(
@@ -263,22 +218,26 @@ fn publish_output(
 ) -> anyhow::Result<()> {
     let output = Path::new(output);
 
+    // FFmpeg reports the interrupted exit code for some early failures too, and then it has recorded nothing.
+    if temporary_output.as_file().metadata().is_ok_and(|metadata| metadata.len() == 0) {
+        return Err(anyhow!("FFmpeg recorded nothing, so {output:?} was not written"));
+    }
+
     if overwrite {
         return temporary_output.persist(output).map(|_| ()).with_context(|| {
             anyhow!("the recording was finished but cannot be moved to {output:?}")
         });
     }
 
-    match fs::hard_link(temporary_output.path(), output) {
-        Ok(()) => temporary_output.close().with_context(|| {
-            anyhow!(
-                "the recording was saved to {output:?}, but its temporary name cannot be removed"
-            )
-        }),
-        Err(error) => {
-            let temporary_path = temporary_output.path().to_path_buf();
+    match temporary_output.persist_noclobber(output) {
+        Ok(_) => Ok(()),
+        Err(PersistError {
+            error,
+            file,
+        }) => {
+            let temporary_path = file.path().to_path_buf();
 
-            match temporary_output.keep() {
+            match file.keep() {
                 Ok(_) => Err(anyhow!(
                     "the recording was finished but cannot be moved to {output:?}: {error}; it \
                      remains at {temporary_path:?}"
@@ -288,6 +247,76 @@ fn publish_output(
                      temporary file also cannot be preserved: {keep_error}"
                 )),
             }
+        },
+    }
+}
+
+/// Work out which encoder runs, and reject the options that do not belong to it.
+fn select_video_encoder<'a>(
+    args: &'a CLIArgs,
+    quality: u8,
+    automatic_vaapi_device: Option<&'a str>,
+) -> anyhow::Result<VideoEncoder<'a>> {
+    match args.hwaccel {
+        Some(ffmpeg::HwAccel::Vaapi) => {
+            if args.nvenc_gpu.is_some() {
+                return Err(anyhow!("--nvenc-gpu requires --hwaccel nvenc"));
+            }
+            if let Some(preset) = args.preset.as_deref() {
+                return Err(anyhow!(
+                    "--preset {preset:?} cannot be used with VAAPI; the driver controls its speed \
+                     and quality tradeoff"
+                ));
+            }
+
+            let device = args
+                .vaapi_device
+                .as_deref()
+                .or(automatic_vaapi_device)
+                .expect("a VAAPI device was provided or found");
+
+            Ok(VideoEncoder::Vaapi {
+                device,
+                qp: quality,
+            })
+        },
+        Some(ffmpeg::HwAccel::Nvenc) => {
+            if args.vaapi_device.is_some() {
+                return Err(anyhow!("--vaapi-device requires --hwaccel vaapi"));
+            }
+
+            let preset = args
+                .preset
+                .as_deref()
+                .unwrap_or("p4")
+                .parse::<NvencPreset>()
+                .map_err(anyhow::Error::msg)?;
+
+            Ok(VideoEncoder::Nvenc {
+                gpu: args.nvenc_gpu,
+                qp: quality,
+                preset,
+            })
+        },
+        None => {
+            if args.vaapi_device.is_some() {
+                return Err(anyhow!("--vaapi-device requires --hwaccel vaapi"));
+            }
+            if args.nvenc_gpu.is_some() {
+                return Err(anyhow!("--nvenc-gpu requires --hwaccel nvenc"));
+            }
+
+            let preset = args
+                .preset
+                .as_deref()
+                .unwrap_or("veryfast")
+                .parse::<SoftwarePreset>()
+                .map_err(anyhow::Error::msg)?;
+
+            Ok(VideoEncoder::Libx264 {
+                crf: quality,
+                preset,
+            })
         },
     }
 }
@@ -358,11 +387,9 @@ mod tests {
 
     #[test]
     fn signal_is_forwarded_to_ffmpeg() {
-        let mut child = Command::new("sh")
-            .args(["-c", "while :; do :; done"])
-            .process_group(0)
-            .spawn()
-            .unwrap();
+        // `exec` makes the signalled process the `sleep` itself, instead of a shell that has to pass it on.
+        let mut child =
+            Command::new("sh").args(["-c", "exec sleep 30"]).process_group(0).spawn().unwrap();
 
         RECEIVED_SIGNAL.store(libc::SIGTERM, Ordering::SeqCst);
 
@@ -386,6 +413,23 @@ mod tests {
 
         assert_eq!(b"recording", fs::read(&output).unwrap().as_slice());
         assert!(!temporary_path.exists());
+    }
+
+    #[test]
+    fn the_published_recording_respects_the_umask() {
+        let directory = tempdir().unwrap();
+        let output = directory.path().join("recording.mp4");
+        let mut temporary_output =
+            create_temporary_output(output.to_str().unwrap(), false).unwrap();
+
+        temporary_output.write_all(b"recording").unwrap();
+
+        publish_output(temporary_output, output.to_str().unwrap(), false).unwrap();
+
+        assert_eq!(
+            0o666 & !current_umask(),
+            fs::metadata(&output).unwrap().permissions().mode() & 0o777
+        );
     }
 
     #[test]

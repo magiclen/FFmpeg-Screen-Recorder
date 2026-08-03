@@ -27,4 +27,4 @@ tempfile = "3"
 anyhow = "1"
 
 chrono = "0.4"
-nix = { version = "0.31", features = ["signal"] }
+nix = { version = "0.31", features = ["fs", "signal"] }

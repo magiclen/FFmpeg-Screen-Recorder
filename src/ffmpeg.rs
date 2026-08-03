@@ -1,4 +1,4 @@
-use std::{fs, process::Command, str::FromStr};
+use std::{fs, path::Path, process::Command, str::FromStr, thread};
 
 use anyhow::{Context, anyhow};
 
@@ -56,20 +56,23 @@ pub enum SoftwarePreset {
 }
 
 impl SoftwarePreset {
+    /// Every preset and its FFmpeg name, in the order the variants are declared so that `as_str` can index it.
+    const VALUES: [(&'static str, SoftwarePreset); 10] = [
+        ("ultrafast", SoftwarePreset::Ultrafast),
+        ("superfast", SoftwarePreset::Superfast),
+        ("veryfast", SoftwarePreset::Veryfast),
+        ("faster", SoftwarePreset::Faster),
+        ("fast", SoftwarePreset::Fast),
+        ("medium", SoftwarePreset::Medium),
+        ("slow", SoftwarePreset::Slow),
+        ("slower", SoftwarePreset::Slower),
+        ("veryslow", SoftwarePreset::Veryslow),
+        ("placebo", SoftwarePreset::Placebo),
+    ];
+
     #[inline]
     const fn as_str(self) -> &'static str {
-        match self {
-            SoftwarePreset::Ultrafast => "ultrafast",
-            SoftwarePreset::Superfast => "superfast",
-            SoftwarePreset::Veryfast => "veryfast",
-            SoftwarePreset::Faster => "faster",
-            SoftwarePreset::Fast => "fast",
-            SoftwarePreset::Medium => "medium",
-            SoftwarePreset::Slow => "slow",
-            SoftwarePreset::Slower => "slower",
-            SoftwarePreset::Veryslow => "veryslow",
-            SoftwarePreset::Placebo => "placebo",
-        }
+        SoftwarePreset::VALUES[self as usize].0
     }
 }
 
@@ -77,22 +80,8 @@ impl FromStr for SoftwarePreset {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "ultrafast" => Ok(SoftwarePreset::Ultrafast),
-            "superfast" => Ok(SoftwarePreset::Superfast),
-            "veryfast" => Ok(SoftwarePreset::Veryfast),
-            "faster" => Ok(SoftwarePreset::Faster),
-            "fast" => Ok(SoftwarePreset::Fast),
-            "medium" => Ok(SoftwarePreset::Medium),
-            "slow" => Ok(SoftwarePreset::Slow),
-            "slower" => Ok(SoftwarePreset::Slower),
-            "veryslow" => Ok(SoftwarePreset::Veryslow),
-            "placebo" => Ok(SoftwarePreset::Placebo),
-            _ => Err(format!(
-                "invalid libx264 preset {value:?}; expected ultrafast, superfast, veryfast, \
-                 faster, fast, medium, slow, slower, veryslow, or placebo"
-            )),
-        }
+        find_preset(&SoftwarePreset::VALUES, value)
+            .ok_or_else(|| invalid_preset_message("libx264", &SoftwarePreset::VALUES, value))
     }
 }
 
@@ -112,20 +101,23 @@ pub enum NvencPreset {
 }
 
 impl NvencPreset {
+    /// Every preset and its FFmpeg name, in the order the variants are declared so that `as_str` can index it.
+    const VALUES: [(&'static str, NvencPreset); 10] = [
+        ("p1", NvencPreset::P1),
+        ("p2", NvencPreset::P2),
+        ("p3", NvencPreset::P3),
+        ("p4", NvencPreset::P4),
+        ("p5", NvencPreset::P5),
+        ("p6", NvencPreset::P6),
+        ("p7", NvencPreset::P7),
+        ("fast", NvencPreset::Fast),
+        ("medium", NvencPreset::Medium),
+        ("slow", NvencPreset::Slow),
+    ];
+
     #[inline]
     const fn as_str(self) -> &'static str {
-        match self {
-            NvencPreset::P1 => "p1",
-            NvencPreset::P2 => "p2",
-            NvencPreset::P3 => "p3",
-            NvencPreset::P4 => "p4",
-            NvencPreset::P5 => "p5",
-            NvencPreset::P6 => "p6",
-            NvencPreset::P7 => "p7",
-            NvencPreset::Fast => "fast",
-            NvencPreset::Medium => "medium",
-            NvencPreset::Slow => "slow",
-        }
+        NvencPreset::VALUES[self as usize].0
     }
 }
 
@@ -133,23 +125,25 @@ impl FromStr for NvencPreset {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "p1" => Ok(NvencPreset::P1),
-            "p2" => Ok(NvencPreset::P2),
-            "p3" => Ok(NvencPreset::P3),
-            "p4" => Ok(NvencPreset::P4),
-            "p5" => Ok(NvencPreset::P5),
-            "p6" => Ok(NvencPreset::P6),
-            "p7" => Ok(NvencPreset::P7),
-            "fast" => Ok(NvencPreset::Fast),
-            "medium" => Ok(NvencPreset::Medium),
-            "slow" => Ok(NvencPreset::Slow),
-            _ => Err(format!(
-                "invalid NVENC preset {value:?}; expected p1, p2, p3, p4, p5, p6, p7, fast, \
-                 medium, or slow"
-            )),
-        }
+        find_preset(&NvencPreset::VALUES, value)
+            .ok_or_else(|| invalid_preset_message("NVENC", &NvencPreset::VALUES, value))
     }
+}
+
+fn find_preset<T: Copy>(values: &[(&str, T)], value: &str) -> Option<T> {
+    values.iter().find(|(name, _)| *name == value).map(|(_, preset)| *preset)
+}
+
+/// Report every accepted preset as `a, b, or c`, so that the list never drifts from the table.
+fn invalid_preset_message<T>(encoder: &str, values: &[(&str, T)], value: &str) -> String {
+    let names: Vec<&str> = values.iter().map(|(name, _)| *name).collect();
+    let accepted = match names.split_last() {
+        Some((last, [])) => (*last).to_string(),
+        Some((last, initial)) => format!("{}, or {last}", initial.join(", ")),
+        None => String::new(),
+    };
+
+    format!("invalid {encoder} preset {value:?}; expected {accepted}")
 }
 
 /// The selected H.264 encoder and its backend-specific options.
@@ -179,10 +173,21 @@ pub struct Capabilities {
 impl Capabilities {
     /// Ask FFmpeg which recording components this program can use.
     pub fn probe(ffmpeg_path: &str) -> anyhow::Result<Capabilities> {
-        let encoders = ffmpeg_listing(ffmpeg_path, "-encoders", "encoders")?;
-        let devices = ffmpeg_listing(ffmpeg_path, "-devices", "input devices")?;
-        let filters = ffmpeg_listing(ffmpeg_path, "-filters", "filters")?;
-        let muxers = ffmpeg_listing(ffmpeg_path, "-muxers", "muxers")?;
+        // Each listing is an independent FFmpeg run, so they go at once to keep the startup short.
+        let (encoders, devices, filters, muxers) = thread::scope(|scope| {
+            let encoders = scope.spawn(|| ffmpeg_listing(ffmpeg_path, "-encoders", "encoders"));
+            let devices = scope.spawn(|| ffmpeg_listing(ffmpeg_path, "-devices", "input devices"));
+            let filters = scope.spawn(|| ffmpeg_listing(ffmpeg_path, "-filters", "filters"));
+            let muxers = ffmpeg_listing(ffmpeg_path, "-muxers", "muxers")?;
+
+            // Unwrapping a join only panics again when the listing itself panicked.
+            anyhow::Ok((
+                encoders.join().unwrap()?,
+                devices.join().unwrap()?,
+                filters.join().unwrap()?,
+                muxers,
+            ))
+        })?;
 
         Ok(Capabilities {
             libx264:    listing_has(&encoders, "libx264"),
@@ -385,6 +390,8 @@ fn build_audio_input(args: &mut Vec<String>, options: &RecordOptions) {
 fn build_pulse_input(args: &mut Vec<String>, device: &str) {
     pair(args, "-f", "pulse");
     pair(args, "-ac", "2");
+    // Audio packets are small, so a deep queue is cheap and keeps the sound from dropping whenever the video stalls.
+    pair(args, "-thread_queue_size", "1024");
     pair(args, "-i", device);
 }
 
@@ -533,6 +540,9 @@ fn rtmp_bitrate_kbps(options: &RecordOptions) -> u32 {
         return DEFAULT_KBPS;
     };
 
+    // `--normalize` pads the capture, so the encoder sees the padded size rather than the captured one.
+    let resolution = options.pad_to.unwrap_or(resolution);
+
     let pixels_per_second =
         resolution.width as u64 * resolution.height as u64 * options.frame_rate as u64;
 
@@ -542,9 +552,9 @@ fn rtmp_bitrate_kbps(options: &RecordOptions) -> u32 {
 
 /// `-movflags` only exists on the MP4 family of muxers.
 fn is_mp4_family(output: &str) -> bool {
-    let extension = output.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
-
-    matches!(extension.as_str(), "mp4" | "m4v" | "mov")
+    Path::new(output).extension().is_some_and(|extension| {
+        ["mp4", "m4v", "mov"].iter().any(|name| extension.eq_ignore_ascii_case(name))
+    })
 }
 
 /// Pick the first DRM render node, which is what `-vaapi_device` expects.
@@ -600,6 +610,20 @@ mod tests {
             overwrite: false,
             rtmp,
             output,
+        }
+    }
+
+    #[test]
+    fn every_preset_round_trips_through_its_name() {
+        // `as_str` indexes its table by the discriminant, so this also proves the two orders still agree.
+        for (name, preset) in SoftwarePreset::VALUES {
+            assert_eq!(name, preset.as_str());
+            assert_eq!(Ok(preset), name.parse::<SoftwarePreset>());
+        }
+
+        for (name, preset) in NvencPreset::VALUES {
+            assert_eq!(name, preset.as_str());
+            assert_eq!(Ok(preset), name.parse::<NvencPreset>());
         }
     }
 
@@ -663,6 +687,8 @@ mod tests {
                 "pulse",
                 "-ac",
                 "2",
+                "-thread_queue_size",
+                "1024",
                 "-i",
                 "default",
                 "-t",
@@ -774,6 +800,20 @@ mod tests {
     }
 
     #[test]
+    fn a_normalized_stream_is_rated_for_the_padded_size() {
+        let mut options = options("rtmp://example.org/live", true);
+
+        options.capture = Capture::Region {
+            position:   Position::new(0, 0),
+            resolution: Resolution::new(1280, 720),
+        };
+        options.pad_to = Some(Resolution::new(1920, 1080));
+
+        // Rating the 1280x720 capture instead of the 1920x1080 output would ask for 1935k.
+        assert_eq!(Some("4354k"), value(&build_args(&options), "-maxrate"));
+    }
+
+    #[test]
     fn vaapi_uploads_frames_to_the_gpu() {
         let mut options = options("out.mp4", false);
 
@@ -783,9 +823,12 @@ mod tests {
 
         let args = build_args(&options);
 
-        assert!(args.windows(2).any(|w| w[0] == "-vf" && w[1] == "format=nv12,hwupload"));
-        assert!(args.windows(2).any(|w| w[0] == "-c:v" && w[1] == "h264_vaapi"));
-        assert!(args.windows(2).any(|w| w[0] == "-vaapi_device" && w[1] == "/dev/dri/renderD128"));
+        assert!(args.windows(2).any(|pair| pair[0] == "-vf" && pair[1] == "format=nv12,hwupload"));
+        assert!(args.windows(2).any(|pair| pair[0] == "-c:v" && pair[1] == "h264_vaapi"));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair[0] == "-vaapi_device" && pair[1] == "/dev/dri/renderD128")
+        );
         assert!(!args.iter().any(|arg| arg == "-pix_fmt"));
     }
 

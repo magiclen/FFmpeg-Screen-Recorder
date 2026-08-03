@@ -47,8 +47,16 @@ impl Monitor {
 
 /// The area x11grab captures when no single monitor is picked, which is the box around every monitor.
 pub fn bounding_box(monitors: &[Monitor]) -> Resolution {
-    let width = monitors.iter().map(|m| m.position.x + m.resolution.width).max().unwrap_or(0);
-    let height = monitors.iter().map(|m| m.position.y + m.resolution.height).max().unwrap_or(0);
+    let width = monitors
+        .iter()
+        .map(|monitor| monitor.position.x + monitor.resolution.width)
+        .max()
+        .unwrap_or(0);
+    let height = monitors
+        .iter()
+        .map(|monitor| monitor.position.y + monitor.resolution.height)
+        .max()
+        .unwrap_or(0);
 
     Resolution::new(width, height)
 }
