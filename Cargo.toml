@@ -22,9 +22,9 @@ strip = true
 clap = { version = "4", features = ["derive"] }
 concat-with = "0.2"
 terminal_size = "0.4"
-tempfile = "3"
+tempfile = "3.10"
 
-anyhow = "1"
+anyhow = "1.0.49"
 
 chrono = "0.4"
 nix = { version = "0.31", features = ["fs", "signal"] }
