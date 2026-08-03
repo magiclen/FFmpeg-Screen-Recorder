@@ -10,7 +10,7 @@ keywords = ["ffmpeg", "cli", "screenrecord"]
 categories = ["command-line-utilities"]
 description = "This program is a gadget which helps you use FFmpeg to record your screen on Linux. The video record can be saved as a file, or be streamed via RTMP protocol."
 license = "MIT"
-include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
+include = ["src/**/*", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE"]
 
 [profile.release]
 lto = true
